@@ -1,11 +1,14 @@
-import os
 import json
+import logging
+import uuid
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
 from constructor_agent_tools.settings import settings
+
+logger = logging.getLogger("constructor_agent_tools.mock_constructor")
 
 # Define Pydantic models for structured output matching Constructor's Schema
 class ConstructorGroup(BaseModel):
@@ -40,16 +43,25 @@ class ConstructorResponsePayload(BaseModel):
     results: List[ConstructorResult]
     facets: List[ConstructorFacet] = Field(default_factory=list)
 
+# We define the LLM response schema without client-side variables to let the LLM focus on the response payload
 class ConstructorAPIResponse(BaseModel):
-    request: Dict[str, Any]
     response: ConstructorResponsePayload
-    result_id: str
 
 class LLMMockEngine:
     def __init__(self, model_name: str = "gemini-2.5-flash"):
         self.model_name = model_name
-        self.client = genai.Client(api_key=settings.gemini_api_key)
-        
+        self._client = None
+
+    @property
+    def client(self) -> genai.Client:
+        if self._client is None:
+            # Lazy initialization to prevent startup crashes when API key is missing
+            api_key = settings.GEMINI_API_KEY
+            if not api_key:
+                logger.warning("GEMINI_API_KEY is not set. Mock LLM requests will fail.")
+            self._client = genai.Client(api_key=api_key)
+        return self._client
+
     def _get_system_prompt(self, endpoint_type: str) -> str:
         return f"""You are a mock implementation of the Constructor.io {endpoint_type} API.
 You must act as a dynamic, intelligent search and discovery engine.
@@ -65,29 +77,34 @@ INSTRUCTIONS:
 6. Return ONLY valid JSON matching the exact schema required.
 """
 
-    def process_request(self, endpoint_type: str, request_params: Dict[str, Any]) -> ConstructorAPIResponse:
+    async def process_request(self, endpoint_type: str, request_params: Dict[str, Any]) -> Dict[str, Any]:
         system_instruction = self._get_system_prompt(endpoint_type)
         user_prompt = f"Process this {endpoint_type} API request: {json.dumps(request_params)}"
         
-        response = self.client.models.generate_content(
+        # Use client.aio for asynchronous, non-blocking calls
+        response = await self.client.aio.models.generate_content(
             model=self.model_name,
             contents=user_prompt,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 response_mime_type="application/json",
                 response_schema=ConstructorAPIResponse,
-                temperature=0.0 # Deterministic structured output
+                temperature=0.0,
             ),
         )
         
-        # Parse the JSON string returned by the model back into our Pydantic model
-        # (Though `response.parsed` might be available depending on the exact SDK version, manual parsing is safer)
         try:
-            return ConstructorAPIResponse.model_validate_json(response.text)
+            parsed_data = ConstructorAPIResponse.model_validate_json(response.text)
+            
+            # Combine the parsed payload with server-side variables (echoing the request, and generating a UUID)
+            return {
+                "request": request_params,
+                "response": parsed_data.response.model_dump(),
+                "result_id": str(uuid.uuid4())
+            }
         except Exception as e:
-            # Fallback for debugging if LLM fails
-            print(f"Error parsing LLM response: {e}")
-            print(f"Raw Response: {response.text}")
+            logger.error(f"Error parsing LLM response: {e}")
+            logger.debug(f"Raw Response: {response.text}")
             raise
 
 llm_engine = LLMMockEngine()

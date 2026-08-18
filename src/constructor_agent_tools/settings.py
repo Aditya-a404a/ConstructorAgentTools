@@ -10,14 +10,20 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Constructor API settings
-    CONSTRUCTOR_API_URL: str = "http://localhost:8002/mock-constructor"
+    CONSTRUCTOR_API_URL: str = "http://localhost:8001/mock-constructor"
     CONSTRUCTOR_API_KEY: Optional[str] = None
+    
+    # Gemini LLM settings
+    GEMINI_API_KEY: Optional[str] = None
     
     # Bundle Agent Settings
     BUNDLE_SOLVER_TIMEOUT_SECONDS: float = 10.0
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore"
+    }
 
 settings = Settings()
+
