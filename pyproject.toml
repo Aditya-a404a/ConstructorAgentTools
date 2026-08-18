@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "constructor_agent_tools"
+version = "0.1.0"
+description = "Advanced autonomous agent systems built on Constructor.io APIs"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.1",
+    "numpy>=1.26.0",
+    "google-genai>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1.1",
+    "pytest-asyncio>=0.23.6",
+    "black>=24.2.0",
+    "isort>=5.13.2",
+    "mypy>=1.9.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+constructor-agents = "constructor_agent_tools.__main__:main"
