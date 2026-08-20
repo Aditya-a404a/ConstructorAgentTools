@@ -37,7 +37,7 @@ def test_bundle_solver_simple():
         BundleRule(
             rule_name="Max Bundle Price",
             description="Limit total price",
-            price_constraints=PriceConstraint(max_total_price=60.0)
+            price_constraints=[PriceConstraint(max_total_price=60.0)]
         ),
         BundleRule(
             rule_name="Color Matching Compatibility",

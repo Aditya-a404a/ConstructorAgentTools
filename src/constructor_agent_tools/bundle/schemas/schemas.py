@@ -15,12 +15,16 @@ class CategoryConstraint(BaseModel):
     category: str
 
 class MinRatingConstraint(BaseModel):
-    slot_id: Optional[str] = None  # None applies to the whole bundle
+    slot_id: str = ""  # empty string applies to the whole bundle
     min_rating: float
 
+class SlotPrice(BaseModel):
+    slot_id: str
+    max_price: float
+
 class PriceConstraint(BaseModel):
-    max_total_price: Optional[float] = None
-    max_slot_price: Dict[str, float] = Field(default_factory=dict)
+    max_total_price: float = -1.0
+    max_slot_price: List[SlotPrice] = Field(default_factory=list)
 
 class CompatibilityConstraint(BaseModel):
     facet_name: str
@@ -31,7 +35,7 @@ class BundleRule(BaseModel):
     description: str
     category_constraints: List[CategoryConstraint] = Field(default_factory=list)
     min_rating_constraints: List[MinRatingConstraint] = Field(default_factory=list)
-    price_constraints: Optional[PriceConstraint] = None
+    price_constraints: List[PriceConstraint] = Field(default_factory=list)
     compatibility_constraints: List[CompatibilityConstraint] = Field(default_factory=list)
     required_product_ids: List[str] = Field(default_factory=list)
     excluded_product_ids: List[str] = Field(default_factory=list)

@@ -42,15 +42,22 @@ class BundleSolver:
 
         for slot in self.slots:
             sid = slot.slot_id
-            cats = slot_categories.get(sid, set())
+            cats = [c.lower() for c in slot_categories.get(sid, set())]
             
             candidates = []
             if not cats:
                 # If no category constraints, all products are eligible
-                candidates = self.products
+                candidates = list(self.products)
             else:
-                for cat in cats:
-                    candidates.extend(self.category_to_products.get(cat, []))
+                candidates = [
+                    p for p in self.products
+                    if p.category.lower() in cats
+                    or any(c in p.category.lower() for c in cats)
+                    or any(p.category.lower() in c for c in cats)
+                    or p.category.lower() == slot.display_name.lower()
+                    or p.category.lower() == sid.lower()
+                    or p.facets.get("slot_id") == sid
+                ]
             
             # Apply individual product rules (ratings, slot price limit, exclusions)
             filtered_candidates = []
@@ -68,7 +75,7 @@ class BundleSolver:
                 rating_ok = True
                 for rule in self.rules:
                     for mr in rule.min_rating_constraints:
-                        if (mr.slot_id == sid or mr.slot_id is None) and p.rating < mr.min_rating:
+                        if (mr.slot_id == sid or mr.slot_id == "") and p.rating < mr.min_rating:
                             rating_ok = False
                             break
                 if not rating_ok:
@@ -77,8 +84,9 @@ class BundleSolver:
                 # Price constraint
                 price_ok = True
                 for rule in self.rules:
-                    if rule.price_constraints and sid in rule.price_constraints.max_slot_price:
-                        if p.price > rule.price_constraints.max_slot_price[sid]:
+                    for pc in rule.price_constraints:
+                        sp_limit = next((sp.max_price for sp in pc.max_slot_price if sp.slot_id == sid), None)
+                        if sp_limit is not None and p.price > sp_limit:
                             price_ok = False
                             break
                 if not price_ok:
@@ -105,22 +113,27 @@ class BundleSolver:
                 # Max total price constraint
                 total_price = sum(p.price for p in current_solution.values())
                 for rule in self.rules:
-                    if rule.price_constraints and rule.price_constraints.max_total_price is not None:
-                        if total_price > rule.price_constraints.max_total_price:
-                            return
+                    for pc in rule.price_constraints:
+                        if pc.max_total_price > 0:
+                            if total_price > pc.max_total_price:
+                                return
                 
-                # Check compatibility constraints (exact facet matching)
+                # Check compatibility constraints (exact facet matching when facet is present)
                 for rule in self.rules:
                     for compat in rule.compatibility_constraints:
                         facet_val = None
                         for p in current_solution.values():
-                            val = p.facets.get(compat.facet_name)
-                            if val is None:
-                                return  # Missing facet means not compatible
-                            if facet_val is None:
-                                facet_val = val
-                            elif facet_val != val:
-                                return  # Mismatch
+                            val = (
+                                p.facets.get(compat.facet_name)
+                                or p.facets.get(compat.facet_name.replace("_", " "))
+                                or p.facets.get(compat.facet_name.lower())
+                            )
+                            if val is not None:
+                                val_str = str(val).lower()
+                                if facet_val is None:
+                                    facet_val = val_str
+                                elif facet_val != val_str and val_str not in facet_val and facet_val not in val_str:
+                                    return  # Genuine Mismatch
 
                 # Check required product constraints
                 for rule in self.rules:
