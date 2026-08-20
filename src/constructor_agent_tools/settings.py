@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     
     # Gemini LLM settings
     GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     
     # Bundle Agent Settings
     BUNDLE_SOLVER_TIMEOUT_SECONDS: float = 10.0

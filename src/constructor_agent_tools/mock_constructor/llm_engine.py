@@ -15,11 +15,15 @@ class ConstructorGroup(BaseModel):
     group_id: str
     display_name: str
 
+class ItemFacet(BaseModel):
+    key: str
+    value: str
+
 class ConstructorItemData(BaseModel):
     id: str
-    image_url: Optional[str] = None
-    url: Optional[str] = None
-    facets: Dict[str, Any] = Field(default_factory=dict)
+    image_url: str = ""
+    url: str = ""
+    facets: List[ItemFacet] = Field(default_factory=list)
     groups: List[ConstructorGroup] = Field(default_factory=list)
 
 class ConstructorResult(BaseModel):
@@ -48,8 +52,8 @@ class ConstructorAPIResponse(BaseModel):
     response: ConstructorResponsePayload
 
 class LLMMockEngine:
-    def __init__(self, model_name: str = "gemini-2.5-flash"):
-        self.model_name = model_name
+    def __init__(self, model_name: Optional[str] = None):
+        self.model_name = model_name or settings.GEMINI_MODEL
         self._client = None
 
     @property
@@ -95,11 +99,16 @@ INSTRUCTIONS:
         
         try:
             parsed_data = ConstructorAPIResponse.model_validate_json(response.text)
+            resp_dict = parsed_data.response.model_dump()
+            for res in resp_dict.get("results", []):
+                data = res.get("data", {})
+                if "facets" in data and isinstance(data["facets"], list):
+                    data["facets"] = {f["key"]: f["value"] for f in data["facets"] if "key" in f and "value" in f}
             
             # Combine the parsed payload with server-side variables (echoing the request, and generating a UUID)
             return {
                 "request": request_params,
-                "response": parsed_data.response.model_dump(),
+                "response": resp_dict,
                 "result_id": str(uuid.uuid4())
             }
         except Exception as e:
